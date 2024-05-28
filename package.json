@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "start": "react-native start",
     "clear": "react-native start - reset-cache",
+    "codepush": "appcenter codepush release-react -a spark25/codepush-demo -d production",
     "test": "jest"
   },
   "dependencies": {
