@@ -1,83 +1,90 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  Text,
-  View,
-} from 'react-native';
+import { Alert } from 'react-native';
 import CodePush from 'react-native-code-push';
-import { dependencies, version } from '../package.json';
-import CodePushLoading from './components/CodepushLoading';
-import useCodePush from './hooks/useCodePush';
+import CodePushModal from './components/CodePushModal';
+import AppNavigation from './navigation/AppNavigation';
 
 const App = () => {
   const [modalVisible, setModalVisible] = useState(false);
-  const { percent, syncMessage } = useCodePush();
+  const [syncMessage, setSyncMessage] = useState(null);
+  const [percent, setPercent] = useState(null);
+
+  const syncStatusChangedCallback = status => {
+    switch (status) {
+      case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
+        setSyncMessage('Checking for update...');
+        break;
+      case CodePush.SyncStatus.DOWNLOADING_PACKAGE:
+        setSyncMessage('Downloading update...');
+        break;
+      case CodePush.SyncStatus.AWAITING_USER_ACTION:
+        setSyncMessage('User waiting...');
+        break;
+      case CodePush.SyncStatus.INSTALLING_UPDATE:
+        setSyncMessage('Loading update...');
+        break;
+      case CodePush.SyncStatus.UP_TO_DATE:
+        setSyncMessage('The app is up to date...');
+        break;
+      case CodePush.SyncStatus.UPDATE_IGNORED:
+        setSyncMessage('Update canceled by user...');
+        break;
+      case CodePush.SyncStatus.UPDATE_INSTALLED:
+        setSyncMessage('Update installed, Application restarting...');
+        break;
+      case CodePush.SyncStatus.UNKNOWN_ERROR:
+        setSyncMessage('An error occurred during the update...');
+        break;
+      default:
+        setSyncMessage(undefined);
+        break;
+    }
+  };
+
+  const downloadProgressCallback = progress => {
+    Alert.alert(JSON.stringify(progress));
+    const currentProgress = Math.round(
+      (progress.receivedBytes / progress.totalBytes) * 100,
+    );
+    setPercent(`${currentProgress} %`);
+  };
 
   useEffect(() => {
-    if (percent || syncMessage) {
-      setModalVisible(true);
-      Alert.alert(percent);
-      console.log('progress:', percent);
-      Alert.alert(syncMessage);
-      console.log('sync message:', syncMessage);
-    }
-  }, [percent, syncMessage]);
+    CodePush.notifyAppReady();
+    CodePush.checkForUpdate().then(update => {
+      if (update) {
+        setModalVisible(true);
+        let codePushOptions = {
+          checkFrequency: CodePush.CheckFrequency.ON_APP_START,
+          installMode: CodePush.InstallMode.IMMEDIATE,
+          updateDialog: {
+            updateTitle: 'New Version of App is available',
+            optionalUpdateMessage: 'Do you want to update?',
+            optionalIgnoreButtonLabel: 'Cancel',
+            optionalInstallButtonLabel: 'Update',
+          },
+        };
+        CodePush.sync(
+          codePushOptions,
+          syncStatusChangedCallback,
+          downloadProgressCallback,
+        );
+        setModalVisible(false);
+        // CodePush.restartApp();
+      }
+    });
+  }, []);
 
-  return (
-    <SafeAreaView className="h-full">
-      <StatusBar barStyle="light-content" />
-      <ScrollView contentInsetAdjustmentBehavior="automatic">
-        {percent || syncMessage ? (
-          <CodePushLoading
-            header="A new version is available"
-            subHeader={syncMessage}
-            progress={percent}
-          />
-        ) : (
-          <View className="h-screen flex-1 items-center justify-center mt-5">
-            <Text className="text-lg text-gray-400 text-center font-bold capitalize">
-              welcome to
-            </Text>
-            <Text className="text-4xl text-gray-400 text-center capitalize my-5">
-              react native {dependencies['react-native']}
-            </Text>
-            <Text className="text-lg text-green-600 text-center font-bold capitalize mb-5">
-              code push
-            </Text>
-            <Text className="text-lg text-gray-400 text-center font-bold capitalize mb-5">
-              {new Date().toDateString()}
-            </Text>
-            <Text className="text-lg text-gray-500 text-center font-bold mb-5">
-              {new Date().toLocaleTimeString()}
-            </Text>
-            <Text className="text-lg text-gray-400 text-center font-bold capitalize mt-2">
-              app version {version}
-            </Text>
-          </View>
-        )}
-      </ScrollView>
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(false);
-        }}>
-        <View className="modal-container bg-black/50 flex-1 items-center justify-center">
-          <View className="modal-content w-4/5 bg-white items-center rounded-lg p-5">
-            <CodePushLoading
-              header="A new version is available"
-              subHeader={syncMessage}
-              progress={percent}
-            />
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+  return percent || syncMessage ? (
+    <CodePushModal
+      modalVisible={modalVisible}
+      setModalVisible={setModalVisible}
+      header="live update in progress"
+      subHeader={syncMessage}
+      progress={percent}
+    />
+  ) : (
+    <AppNavigation />
   );
 };
 
