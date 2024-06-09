@@ -1,91 +1,82 @@
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 import CodePush from 'react-native-code-push';
 import CodePushModal from './components/CodePushModal';
 import AppNavigation from './navigation/AppNavigation';
 
+const codePushOptions = {
+  checkFrequency: CodePush.CheckFrequency.MANUAL,
+};
+
 const App = () => {
   const [modalVisible, setModalVisible] = useState(false);
-  const [syncMessage, setSyncMessage] = useState(null);
-  const [percent, setPercent] = useState(null);
+  const [message, setMessage] = useState(null);
+  const [progress, setProgress] = useState(null);
+  // const [progress, setProgress] = useState({
+  //   receivedBytes: 30000000,
+  //   totalBytes: 50000000,
+  // });
 
-  const syncStatusChangedCallback = status => {
+  useEffect(() => {
+    CodePush.sync(
+      {
+        installMode: CodePush.InstallMode.IMMEDIATE,
+        updateDialog: false,
+      },
+      codePushStatusChange,
+      codePushDownloadProgress,
+    );
+  }, []);
+
+  const codePushStatusChange = status => {
     switch (status) {
-      case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
-        setSyncMessage('Checking for update...');
-        break;
+      // case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
+      //   setMessage('Checking for update');
+      //   break;
+      // case CodePush.SyncStatus.AWAITING_USER_ACTION:
+      //   setMessage('Awaiting user action');
+      //   break;
+      // case CodePush.SyncStatus.UP_TO_DATE:
+      //   setMessage('The app is up to date');
+      //   break;
+      // case CodePush.SyncStatus.UPDATE_IGNORED:
+      //   setMessage('Update canceled by user');
+      //   break;
       case CodePush.SyncStatus.DOWNLOADING_PACKAGE:
-        setSyncMessage('Downloading update...');
-        break;
-      case CodePush.SyncStatus.AWAITING_USER_ACTION:
-        setSyncMessage('User waiting...');
+        setModalVisible(true);
+        setMessage('Downloading update');
         break;
       case CodePush.SyncStatus.INSTALLING_UPDATE:
-        setSyncMessage('Loading update...');
-        break;
-      case CodePush.SyncStatus.UP_TO_DATE:
-        setSyncMessage('The app is up to date...');
-        break;
-      case CodePush.SyncStatus.UPDATE_IGNORED:
-        setSyncMessage('Update canceled by user...');
+        setModalVisible(true);
+        setMessage('Installing update');
         break;
       case CodePush.SyncStatus.UPDATE_INSTALLED:
-        setSyncMessage('Update installed, Application restarting...');
+        setMessage('Restarting application ');
         break;
       case CodePush.SyncStatus.UNKNOWN_ERROR:
-        setSyncMessage('An error occurred during the update...');
+        setMessage('An error occurred during the update');
         break;
       default:
-        setSyncMessage(undefined);
+        setMessage(null);
         break;
     }
   };
 
-  const downloadProgressCallback = progress => {
-    Alert.alert(JSON.stringify(progress));
-    const currentProgress = Math.round(
-      (progress.receivedBytes / progress.totalBytes) * 100,
-    );
-    setPercent(`${currentProgress} %`);
+  const codePushDownloadProgress = downloadProgress => {
+    setProgress(downloadProgress);
   };
 
-  useEffect(() => {
-    CodePush.notifyAppReady();
-    CodePush.checkForUpdate().then(update => {
-      if (update) {
-        setModalVisible(true);
-        let codePushOptions = {
-          checkFrequency: CodePush.CheckFrequency.ON_APP_START,
-          installMode: CodePush.InstallMode.IMMEDIATE,
-          updateDialog: {
-            updateTitle: 'New Version of App is available',
-            optionalUpdateMessage: 'Do you want to update?',
-            optionalIgnoreButtonLabel: 'Cancel',
-            optionalInstallButtonLabel: 'Update',
-          },
-        };
-        CodePush.sync(
-          codePushOptions,
-          syncStatusChangedCallback,
-          downloadProgressCallback,
-        );
-        setModalVisible(false);
-        // CodePush.restartApp();
-      }
-    });
-  }, []);
-
-  return percent || syncMessage ? (
-    <CodePushModal
-      modalVisible={modalVisible}
-      setModalVisible={setModalVisible}
-      header="live update in progress"
-      subHeader={syncMessage}
-      progress={percent}
-    />
-  ) : (
-    <AppNavigation />
+  return (
+    <>
+      <AppNavigation />
+      <CodePushModal
+        visible={modalVisible}
+        header="Live update in progress"
+        subHeader="Applying the live update ensures you will get the latest version of the application."
+        progress={progress}
+        message={message}
+      />
+    </>
   );
 };
 
-export default CodePush(App);
+export default CodePush(codePushOptions)(App);
